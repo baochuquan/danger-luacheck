@@ -44,14 +44,14 @@ module Danger
         raise UnsupportedServiceError
       end
 
-      targets = targets_files(git.added_files + git.modified_files)
+      targets = target_files(git.added_files + git.modified_files)
 
       results = luacheck_results(targets)
       if results.nil? || results.empty?
         return
       end
 
-      if inlint_mode
+      if inline_mode
         send_inline_comments(results, targets)
       else
         send_markdown_comment(results, targets)
@@ -63,52 +63,51 @@ module Danger
       catch(:loop_break) do
         count = 0
         luacheck_results.each do |luacheck_result|
-          luacheck_result.each do |result|
-            failures = result.xpath("//failure")
-            failures.each do |failure|
-              message = failure.attributes["message"].value
-              file_path = message.split(":")[0]
-              line = message.split(":")[1]
-              column = message.split(":")[2]
-              next unless targets.include?(file_path)
+          puts luacheck_result
+          failures = luacheck_result.xpath("//failure")
+          failures.each do |failure|
+            message = failure.attributes["message"].value
+            next unless message.split(":").size >= 2
 
-              message = "#{file_html_link(file_path, line)}: #{message}"
-              fail(message)
-              next if limit.nil?
+            file_path = message.split(":")[0]
+            line = message.split(":")[1]
+            next unless targets.include?(file_path)
 
-              count += 1
-              if count >= limit
-                throw(:loop_break)
-              end
+            message = "#{file_html_link(file_path, line)}: #{message}"
+            fail(message)
+            next if limit.nil?
+
+            count += 1
+            if count >= limit
+              throw(:loop_break)
             end
           end
         end
       end
     end
 
-    def send_inline_comments(ktlint_results, targets)
-      puts "==========="
+    def send_inline_comments(luacheck_results, targets)
+      puts "============="
       catch(:loop_break) do
         count = 0
-        ktlint_results.each do |ktlint_result|
-          ktlint_result.each do |result|
-            failures = result.xpath("//failure")
-            failures.each do |error|
-              message = failure.attributes["message"].value
-              file_path = message.split(":")[0]
-              line = message.split(":")[1]
-              next unless targets.include?(file_path)
+        luacheck_results.each do |luacheck_result|
+          failures = luacheck_result.xpath("//failure")
+          failures.each do |failure|
+            message = failure.attributes["message"].value
+            next unless message.split(":").size >= 2
 
-              puts "==========="
-              puts message
-              puts line
-              fail(message, file: file_path, line: line)
-              next if limit.nil?
+            file_path = message.split(":")[0]
+            line = message.split(":")[1]
+            next unless targets.include?(file_path)
 
-              count += 1
-              if count >= limit
-                throw(:loop_break)
-              end
+            puts message
+            puts line
+            fail(message, file: file_path, line: line)
+            next if limit.nil?
+
+            count += 1
+            if count >= limit
+              throw(:loop_break)
             end
           end
         end
@@ -158,8 +157,7 @@ module Danger
 
       return if targets.empty?
 
-      # puts Nokogiri::XML(`luacheck #{targets.join(" ")} --formatter=JUnit`)
-      [Nokogiri::XML(`luacheck #{targets.join(" ")} --formatter=JUnit`)]
+      [Nokogiri::XML(`luacheck #{targets.join(" ")} --formatter JUnit`)]
     end
 
     def supported_service?
