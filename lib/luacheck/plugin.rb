@@ -1,34 +1,34 @@
 # frozen_string_literal: true
 
 require "json"
+require "nokogiri"
 
 module Danger
   class DangerLuacheck < Plugin
     class UnexpectedLimitTypeError < StandardError; end
 
     class UnsupportdServiceError < StandardError
-      def initialize(message = 'Unsupported service! Currently supported services are GitHub, GitLab and BitBucket server.')
+      def initialize(message = "Unsupported service! Currently supported services are GitHub, GitLab and BitBucket server.")
         super(message)
-      en
+      end
     end
 
-    AVAILABLE_SERVICES = [:github, :gitlab, :bitbucket_server]
+    AVAILABLE_SERVICES = %i(github gitlab bitbucket_server)
 
     # TODO: Lint all files if `filtering: false`
-
 
     # An attribute that you can read/write from your Dangerfile
     #
     # @return   [Array<String>]
     attr_accessor :skip_lint, :report_file, :report_files_pattern
 
-    def limit 
+    def limit
       @limit ||= nil
     end
 
     def limit=(limit)
-      if limit != nil && limit.integer?
-        @limit = limit 
+      if !limit.nil? && limit.integer?
+        @limit = limit
       else
         raise UnexpectedLimitTypeError
       end
@@ -41,7 +41,7 @@ module Danger
     # def lint(inlint_mode: false)
     def lint(inline_mode: false)
       unless supported_service?
-        raise UnsupportedServiceError.new
+        raise UnsupportedServiceError
       end
 
       targets = targets_files(git.added_files + git.modified_files)
@@ -51,7 +51,7 @@ module Danger
         return
       end
 
-      if inlint_mode 
+      if inlint_mode
         send_inline_comments(results, targets)
       else
         send_markdown_comment(results, targets)
@@ -59,59 +59,55 @@ module Danger
     end
 
     # Comment to a PR by luacheck result json
-    # Sample single luacheck result
-    # [
-    #   {
-    #     "file": "AMClick/src/AMClickResManager.lua",
-    #     "errors": [
-    #       {
-    #         "line": 46,
-    #         "column": 1,
-    #         "message": "Unexpected blank line(s) before \"}\"",
-    #         "rule": "no-blank-line-before-rbrace"
-    #       }
-    #     ]
-    #   }
-    # ]
     def send_markdown_comment(luacheck_results, targets)
       catch(:loop_break) do
         count = 0
         luacheck_results.each do |luacheck_result|
           luacheck_result.each do |result|
-            result['errors'].each do |error|
-              file_path = relative_file_path(result['file'])
+            failures = result.xpath("//failure")
+            failures.each do |failure|
+              message = failure.attributes["message"].value
+              file_path = message.split(":")[0]
+              line = message.split(":")[1]
+              column = message.split(":")[2]
               next unless targets.include?(file_path)
 
-              message = "#{file_html_link(file_path, error['line'])}: #{error['message']}"
+              message = "#{file_html_link(file_path, line)}: #{message}"
               fail(message)
-              unless limit.nil?
-                count += 1
-                if count >= limit 
-                  throw(:loop_break)
+              next if limit.nil?
+
+              count += 1
+              if count >= limit
+                throw(:loop_break)
               end
             end
           end
-
         end
       end
     end
 
     def send_inline_comments(ktlint_results, targets)
+      puts "==========="
       catch(:loop_break) do
         count = 0
         ktlint_results.each do |ktlint_result|
           ktlint_result.each do |result|
-            result['errors'].each do |error|
-              file_path = relative_file_path(result['file'])
+            failures = result.xpath("//failure")
+            failures.each do |error|
+              message = failure.attributes["message"].value
+              file_path = message.split(":")[0]
+              line = message.split(":")[1]
               next unless targets.include?(file_path)
-              message = error['message']
-              line = error['line']
-              fail(message, file: result['file'], line: line)
-              unless limit.nil?
-                count += 1
-                if count >= limit
-                  throw(:loop_break)
-                end
+
+              puts "==========="
+              puts message
+              puts line
+              fail(message, file: file_path, line: line)
+              next if limit.nil?
+
+              count += 1
+              if count >= limit
+                throw(:loop_break)
               end
             end
           end
@@ -121,13 +117,13 @@ module Danger
 
     def target_files(changed_files)
       changed_files.select do |file|
-        file.end_with?('.kt')
+        file.end_with?(".lua")
       end
     end
 
-     # Make it a relative path so it can compare it to git.added_files
-     def relative_file_path(file_path)
-      file_path.gsub(/#{pwd}\//, '')
+    # Make it a relative path so it can compare it to git.added_files
+    def relative_file_path(file_path)
+      file_path.gsub(%r{#{pwd}/}, "")
     end
 
     private
@@ -151,41 +147,33 @@ module Danger
     end
 
     def luacheck_exists?
-      system 'which luacheck > /dev/null 2>&1' 
+      system "which luacheck > /dev/null 2>&1"
     end
 
     def luacheck_results(targets)
-      if skip_lint
-        # TODO: Allow XML
-        luacheck_result_files.map do |file|
-          File.open(file) do |f|
-            JSON.load(f)
-          end
-        end
-      else
-        unless luacheck_exists?
-          fail("Couldn't find luacheck command. Install first.")
-          return
-        end
-
-        return if targets.empty?
-
-        [JSON.parse(`luacheck #{targets.join(' ')} --reporter=json --relative`)]
+      unless luacheck_exists?
+        fail("Couldn't find luacheck command. Install first.")
+        return
       end
+
+      return if targets.empty?
+
+      # puts Nokogiri::XML(`luacheck #{targets.join(" ")} --formatter=JUnit`)
+      [Nokogiri::XML(`luacheck #{targets.join(" ")} --formatter=JUnit`)]
     end
 
     def supported_service?
       AVAILABLE_SERVICES.include?(danger.scm_provider.to_sym)
     end
 
-    def luacheck_result_files
-      if !report_file.nil? && !report_file.empty? && File.exists?(report_file)
-        [report_file]
-      elsif !report_files_pattern.nil? && !report_files_pattern.empty?
-        Dir.glob(report_files_pattern)
-      else
-        fail("Couldn't find luacheck result json file.\nYou must specify it with `luacheck.report_file=...` or `luacheck.report_files_pattern=...` in your Dangerfile.")
-      end
-    end
+    # def luacheck_result_files
+    #   if !report_file.nil? && !report_file.empty? && File.exist?(report_file)
+    #     [report_file]
+    #   elsif !report_files_pattern.nil? && !report_files_pattern.empty?
+    #     Dir.glob(report_files_pattern)
+    #   else
+    #     fail("Couldn't find luacheck result json file.\nYou must specify it with `luacheck.report_file=...` or `luacheck.report_files_pattern=...` in your Dangerfile.")
+    #   end
+    # end
   end
 end

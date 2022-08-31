@@ -1,9 +1,7 @@
-# frozen_string_literal: true
-
 require "pathname"
 ROOT = Pathname.new(File.expand_path("..", __dir__))
-$:.unshift("#{ROOT}lib".to_s)
-$:.unshift("#{ROOT}spec".to_s)
+$:.unshift((ROOT + "lib").to_s)
+$:.unshift((ROOT + "spec").to_s)
 
 require "bundler/setup"
 require "pry"
@@ -48,15 +46,21 @@ def testing_ui
 end
 # rubocop:enable Lint/NestedMethodDefinition
 
-# Example environment (ENV) that would come from
-# running a PR on TravisCI
 def testing_env
   {
-    "HAS_JOSH_K_SEAL_OF_APPROVAL" => "true",
-    "TRAVIS_PULL_REQUEST" => "800",
-    "TRAVIS_REPO_SLUG" => "artsy/eigen",
-    "TRAVIS_COMMIT_RANGE" => "759adcbd0d8f...13c4dc8bb61d",
+    "BITRISE_PULL_REQUEST" => "4",
+    "BITRISE_IO" => "true",
+    "GIT_REPOSITORY_URL" => "git@github.com:artsy/eigen",
     "DANGER_GITHUB_API_TOKEN" => "123sbdq54erfsd3422gdfio"
+  }
+end
+
+def testing_env_for_gitlab
+  {
+    "BITRISE_PULL_REQUEST" => "4",
+    "BITRISE_IO" => "true",
+    "GIT_REPOSITORY_URL" => "git@gitlab.com:artsy/eigen",
+    "DANGER_GITLAB_API_TOKEN" => "123sbdq54erfsd3422gdfio"
   }
 end
 
@@ -64,4 +68,13 @@ end
 def testing_dangerfile
   env = Danger::EnvironmentManager.new(testing_env)
   Danger::Dangerfile.new(env, testing_ui)
+end
+
+def testing_dangerfile_for_gitlab
+  env = Danger::EnvironmentManager.new(testing_env_for_gitlab)
+  Danger::Dangerfile.new(env, testing_ui)
+end
+
+def dummy_luacheck_result_1
+  File.read(File.expand_path("fixtures/luacheck_result_1.xml", __dir__)).chomp
 end

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Luacheck report" tests="2">
+    <testcase name="AMClick/src/AMClickResManager.lua:1" classname="AMClick/src/AMClickResManager.lua">
+        <failure type="W614" message="AMClick/src/AMClickResManager.lua:20:30: trailing whitespace in a comment"/>
+    </testcase>
+    <testcase name="AMClick/src/AMClickResManager.lua:2" classname="AMClick/src/AMClickResManager.lua">
+        <failure type="W421" message="AMClick/src/AMClickResManager.lua:75:10: shadowing definition of variable &apos;fontString&apos; on line 66"/>
+    </testcase>
+</testsuite>
