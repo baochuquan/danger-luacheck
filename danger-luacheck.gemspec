@@ -7,11 +7,11 @@ require "luacheck/gem_version"
 Gem::Specification.new do |spec|
   spec.name          = "danger-luacheck"
   spec.version       = Luacheck::VERSION
-  spec.authors       = ["baocq"]
-  spec.email         = ["baocq@yuanfudao.com"]
+  spec.authors       = ["baochuquan"]
+  spec.email         = ["baochuquan@163.com"]
   spec.description   = "A short description of danger-luacheck."
   spec.summary       = "A longer description of danger-luacheck."
-  spec.homepage      = "https://github.com/baocq/danger-luacheck"
+  spec.homepage      = "https://github.com/baocchuquan/danger-luacheck"
   spec.license       = "MIT"
 
   spec.files         = `git ls-files`.split($/)
