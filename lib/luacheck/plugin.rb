@@ -87,7 +87,6 @@ module Danger
     end
 
     def send_inline_comments(luacheck_results, targets)
-      puts "============="
       catch(:loop_break) do
         count = 0
         luacheck_results.each do |luacheck_result|
